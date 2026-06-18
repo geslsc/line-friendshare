@@ -9,12 +9,11 @@ import type { StoreConfig } from "@/types/store";
 export const stores: StoreConfig[] = [
   {
     code: "k8m3n7x2",
-    name: "測試美學館",
-    storeLink: "https://lin.ee/demo",
+    name: "阿智官方 LINE",
+    storeLink: "https://lin.ee/VGWB02r",
     shareText:
-      "我最近發現一間很棒的「測試美學館」✨\n" +
-      "環境舒服、服務也很用心，推薦你也來看看！\n" +
-      "點下面連結加入官方帳號 👇",
+      "推薦你加這個 LINE 官方帳號\n\n" +
+      "我推薦你加這個 LINE 官方帳號，可以看看最新服務資訊，也可以直接私訊詢問。",
     shareImage: "/images/demo-store-share.png",
   },
 ];
