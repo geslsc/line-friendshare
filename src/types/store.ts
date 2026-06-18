@@ -24,10 +24,34 @@ export type SharePageStatus =
   | "ready"
   | "share_unavailable"
   | "not_in_line"
-  | "init_error";
+  | "init_error"
+  | "login_redirect";
+
+export type ChatMessageWriteState =
+  | "granted"
+  | "prompt"
+  | "unavailable"
+  | "unknown";
+
+export interface ShareDiagnostic {
+  step: string;
+  ok: boolean;
+  message: string;
+}
 
 export interface ShareEnvironment {
   isInLine: boolean;
+  isLoggedIn: boolean;
   isShareTargetPickerAvailable: boolean;
+  chatMessageWriteState: ChatMessageWriteState;
   initError: string | null;
+  /** 主要阻擋原因（人類可讀） */
+  shareBlockReason: string | null;
+  /** 逐步診斷紀錄 */
+  diagnostics: ShareDiagnostic[];
+  lineVersion: string | null;
+  liffVersion: string | null;
+  os: string | null;
+  needsLogin: boolean;
+  needsReauthorize: boolean;
 }

@@ -206,3 +206,46 @@ img {
   color: #999;
   text-align: center;
 }
+
+.btn-secondary {
+  width: 100%;
+  padding: 12px 16px;
+  border: 1px solid var(--line-green);
+  border-radius: 12px;
+  background: #fff;
+  color: var(--line-green-dark);
+  font-size: 0.95rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.btn-secondary:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.diagnostics {
+  font-size: 0.8rem;
+  color: var(--text-secondary);
+}
+
+.diagnostics summary {
+  cursor: pointer;
+  font-weight: 600;
+}
+
+.diagnostics-list {
+  margin: 8px 0 0;
+  padding-left: 1.25rem;
+  line-height: 1.6;
+}
+
+.diagnostics-list li[data-ok="false"] {
+  color: #b45309;
+}
+
+.diagnostics-meta {
+  margin: 8px 0 0;
+  font-size: 0.75rem;
+  color: #999;
+}

@@ -4,14 +4,29 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 
 import { getAbsoluteAssetUrl } from "@/config/env";
 import { trackEvent } from "@/lib/analytics/tracker";
-import { initLiff, shareStoreViaTargetPicker } from "@/lib/liff/share";
-import type { ShareEnvironment, SharePageStatus, StoreConfig } from "@/types/store";
+import {
+  initLiff,
+  refreshShareEnvironment,
+  requestChatMessageWritePermission,
+  shareStoreViaTargetPicker,
+} from "@/lib/liff/share";
+import type {
+  ShareEnvironment,
+  SharePageStatus,
+  StoreConfig,
+} from "@/types/store";
 
 interface SharePageProps {
   store: StoreConfig;
 }
 
-function resolveStatus(environment: ShareEnvironment): SharePageStatus {
+function resolveStatus(
+  environment: ShareEnvironment,
+  redirecting?: boolean
+): SharePageStatus {
+  if (redirecting || environment.needsLogin) {
+    return "login_redirect";
+  }
   if (environment.initError) {
     return "init_error";
   }
@@ -24,17 +39,66 @@ function resolveStatus(environment: ShareEnvironment): SharePageStatus {
   return "ready";
 }
 
+function DiagnosticPanel({
+  environment,
+}: {
+  environment: ShareEnvironment;
+}) {
+  if (environment.diagnostics.length === 0) {
+    return null;
+  }
+
+  return (
+    <details className="diagnostics" style={{ margin: "12px 20px 0" }}>
+      <summary>環境診斷（{environment.diagnostics.length} 項）</summary>
+      <ul className="diagnostics-list">
+        {environment.diagnostics.map((item) => (
+          <li key={item.step} data-ok={item.ok}>
+            <strong>{item.step}</strong>：{item.message}
+          </li>
+        ))}
+      </ul>
+      {(environment.lineVersion || environment.liffVersion || environment.os) && (
+        <p className="diagnostics-meta">
+          {environment.lineVersion && `LINE ${environment.lineVersion}`}
+          {environment.liffVersion && ` · LIFF SDK ${environment.liffVersion}`}
+          {environment.os && ` · ${environment.os}`}
+        </p>
+      )}
+    </details>
+  );
+}
+
 function FallbackNotice({
   status,
   store,
-  initError,
+  environment,
+  onReauthorize,
+  isReauthorizing,
 }: {
   status: SharePageStatus;
   store: StoreConfig;
-  initError: string | null;
+  environment: ShareEnvironment | null;
+  onReauthorize: () => void;
+  isReauthorizing: boolean;
 }) {
   if (status === "ready" || status === "loading") {
     return null;
+  }
+
+  const blockReason = environment?.shareBlockReason;
+  const initError = environment?.initError;
+
+  if (status === "login_redirect") {
+    return (
+      <div className="alert alert-info" role="alert">
+        <strong>正在導向 LINE 登入</strong>
+        <p style={{ margin: "8px 0 0" }}>
+          {blockReason ??
+            "完成登入後會回到此頁，屆時再檢查 Share Target Picker 是否可用。"}
+        </p>
+      </div>
+    );
   }
 
   if (status === "init_error") {
@@ -44,6 +108,7 @@ function FallbackNotice({
         <p style={{ margin: "8px 0 0" }}>
           {initError ?? "無法載入 LINE 功能，您仍可使用下方店家連結。"}
         </p>
+        {blockReason && <p style={{ margin: "8px 0 0" }}>{blockReason}</p>}
       </div>
     );
   }
@@ -53,7 +118,8 @@ function FallbackNotice({
       <div className="alert alert-warning" role="alert">
         <strong>請在 LINE 內開啟此頁面以使用分享功能</strong>
         <p style={{ margin: "8px 0 0" }}>
-          分享按鈕需在 LINE App 的 LIFF 環境中才能使用。您可先透過下方連結前往店家。
+          {blockReason ??
+            "分享按鈕需在 LINE App 的 LIFF 環境中才能使用。您可先透過下方連結前往店家。"}
         </p>
       </div>
     );
@@ -64,8 +130,22 @@ function FallbackNotice({
       <div className="alert alert-warning" role="alert">
         <strong>Share Target Picker 目前不可用</strong>
         <p style={{ margin: "8px 0 0" }}>
-          請確認 LINE Developers Console 已啟用 shareTargetPicker
-          並同意相關條款，或直接分享下方店家連結給好友。
+          {blockReason ??
+            "請確認 LINE Developers Console 已啟用 shareTargetPicker 並同意相關條款。"}
+        </p>
+        {environment?.needsReauthorize && (
+          <button
+            type="button"
+            className="btn-secondary"
+            style={{ marginTop: 12 }}
+            onClick={onReauthorize}
+            disabled={isReauthorizing}
+          >
+            {isReauthorizing ? "授權中…" : "重新授權 chat_message.write"}
+          </button>
+        )}
+        <p style={{ margin: "8px 0 0", fontSize: "0.85rem" }}>
+          或直接分享下方店家連結給好友。
         </p>
       </div>
     );
@@ -83,14 +163,22 @@ function FallbackNotice({
 
 export default function SharePageClient({ store }: SharePageProps) {
   const [status, setStatus] = useState<SharePageStatus>("loading");
-  const [initError, setInitError] = useState<string | null>(null);
   const [environment, setEnvironment] = useState<ShareEnvironment | null>(null);
   const [isSharing, setIsSharing] = useState(false);
+  const [isReauthorizing, setIsReauthorizing] = useState(false);
   const [shareFeedback, setShareFeedback] = useState<string | null>(null);
 
   const imageUrl = useMemo(
     () => getAbsoluteAssetUrl(store.shareImage),
     [store.shareImage]
+  );
+
+  const applyEnvironment = useCallback(
+    (result: Awaited<ReturnType<typeof initLiff>>) => {
+      setEnvironment(result.environment);
+      setStatus(resolveStatus(result.environment, result.redirecting));
+    },
+    []
   );
 
   useEffect(() => {
@@ -104,9 +192,7 @@ export default function SharePageClient({ store }: SharePageProps) {
         return;
       }
 
-      setEnvironment(result.environment);
-      setInitError(result.environment.initError);
-      setStatus(resolveStatus(result.environment));
+      applyEnvironment(result);
     }
 
     bootstrap();
@@ -114,35 +200,76 @@ export default function SharePageClient({ store }: SharePageProps) {
     return () => {
       cancelled = true;
     };
-  }, [store.code]);
+  }, [store.code, applyEnvironment]);
+
+  const handleReauthorize = useCallback(async () => {
+    setIsReauthorizing(true);
+    setShareFeedback(null);
+
+    try {
+      const result = await requestChatMessageWritePermission();
+      applyEnvironment(result);
+
+      if (result.environment.isShareTargetPickerAvailable) {
+        setShareFeedback("授權完成，現在可以使用分享功能。");
+      } else {
+        setShareFeedback(
+          result.environment.shareBlockReason ?? "授權後仍無法使用分享功能。"
+        );
+      }
+    } finally {
+      setIsReauthorizing(false);
+    }
+  }, [applyEnvironment]);
 
   const handleShare = useCallback(async () => {
     trackEvent("share_click", store.code);
     setShareFeedback(null);
 
-    if (!environment) {
-      setShareFeedback("環境尚未就緒，請稍後再試。");
-      return;
-    }
-
-    if (environment.initError) {
-      setShareFeedback("LIFF 尚未正確初始化，無法分享。");
-      return;
-    }
-
-    if (!environment.isInLine) {
-      setShareFeedback("請在 LINE App 內開啟此頁面以使用分享功能。");
-      return;
-    }
-
-    if (!environment.isShareTargetPickerAvailable) {
-      setShareFeedback("Share Target Picker 在此環境不可用。");
-      return;
-    }
-
     setIsSharing(true);
 
     try {
+      const refreshed = await refreshShareEnvironment();
+      applyEnvironment(refreshed);
+
+      if (refreshed.redirecting) {
+        setShareFeedback("正在導向 LINE 登入，請完成登入後再試。");
+        return;
+      }
+
+      const { environment: latestEnv } = refreshed;
+
+      if (latestEnv.initError) {
+        setShareFeedback(
+          latestEnv.shareBlockReason ??
+            "LIFF 尚未正確初始化，無法分享。"
+        );
+        return;
+      }
+
+      if (!latestEnv.isInLine) {
+        setShareFeedback(
+          latestEnv.shareBlockReason ??
+            "請在 LINE App 內開啟此頁面以使用分享功能。"
+        );
+        return;
+      }
+
+      if (!latestEnv.isLoggedIn) {
+        setShareFeedback(
+          latestEnv.shareBlockReason ?? "請先完成 LINE 登入。"
+        );
+        return;
+      }
+
+      if (!latestEnv.isShareTargetPickerAvailable) {
+        setShareFeedback(
+          latestEnv.shareBlockReason ??
+            "Share Target Picker 在此環境不可用。"
+        );
+        return;
+      }
+
       const result = await shareStoreViaTargetPicker(store);
 
       if (result.success) {
@@ -155,7 +282,7 @@ export default function SharePageClient({ store }: SharePageProps) {
     } finally {
       setIsSharing(false);
     }
-  }, [environment, store]);
+  }, [applyEnvironment, store]);
 
   return (
     <main className="page">
@@ -183,8 +310,14 @@ export default function SharePageClient({ store }: SharePageProps) {
         <FallbackNotice
           status={status}
           store={store}
-          initError={initError}
+          environment={environment}
+          onReauthorize={handleReauthorize}
+          isReauthorizing={isReauthorizing}
         />
+
+        {environment && status !== "loading" && (
+          <DiagnosticPanel environment={environment} />
+        )}
 
         {status === "loading" && (
           <div className="loading">正在載入 LINE 功能…</div>
@@ -195,7 +328,7 @@ export default function SharePageClient({ store }: SharePageProps) {
             type="button"
             className="btn-share"
             onClick={handleShare}
-            disabled={status === "loading" || isSharing}
+            disabled={status === "loading" || isSharing || isReauthorizing}
             aria-busy={isSharing}
           >
             {isSharing ? "分享中…" : "分享給 LINE 好友"}
