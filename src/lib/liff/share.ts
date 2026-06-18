@@ -7,6 +7,7 @@ import {
   evaluateShareTargetPicker,
   queryChatMessageWriteState,
 } from "./diagnostics";
+import { buildLoginRedirectUri } from "./autoshare";
 
 let liffInitialized = false;
 
@@ -42,7 +43,7 @@ async function buildEnvironmentAfterInit(): Promise<LiffInitResult> {
 
   if (!isLoggedIn) {
     try {
-      liff.login({ redirectUri: window.location.href });
+      liff.login({ redirectUri: buildLoginRedirectUri() });
       return {
         environment: baseEnvironment({
           isInLine: true,
@@ -164,7 +165,12 @@ export async function requestChatMessageWritePermission(): Promise<LiffInitResul
 
 export async function shareStoreViaTargetPicker(
   store: StoreConfig
-): Promise<{ success: boolean; cancelled?: boolean; error?: string }> {
+): Promise<{
+  success: boolean;
+  cancelled?: boolean;
+  error?: string;
+  errorCode?: string;
+}> {
   const refreshed = await refreshShareEnvironment();
 
   if (refreshed.redirecting) {
@@ -251,8 +257,14 @@ export async function shareStoreViaTargetPicker(
 
     return { success: false, cancelled: true };
   } catch (error) {
+    const record =
+      typeof error === "object" && error !== null
+        ? (error as Record<string, unknown>)
+        : null;
     const message =
       error instanceof Error ? error.message : "分享失敗，請稍後再試";
-    return { success: false, error: message };
+    const errorCode =
+      record?.code != null ? String(record.code) : undefined;
+    return { success: false, error: message, errorCode };
   }
 }

@@ -5,6 +5,12 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { getAbsoluteAssetUrl } from "@/config/env";
 import { trackEvent } from "@/lib/analytics/tracker";
 import {
+  type AutoShareDiagnostic,
+  type AutoShareOutcome,
+  isAutoShareEnabled,
+  runAutoShareFlow,
+} from "@/lib/liff/autoshare";
+import {
   initLiff,
   refreshShareEnvironment,
   requestChatMessageWritePermission,
@@ -37,6 +43,72 @@ function resolveStatus(
     return "share_unavailable";
   }
   return "ready";
+}
+
+function AutoShareVerificationPanel({
+  diagnostics,
+  outcome,
+}: {
+  diagnostics: AutoShareDiagnostic | null;
+  outcome: AutoShareOutcome;
+}) {
+  if (!diagnostics?.autoShareEnabled) {
+    return null;
+  }
+
+  return (
+    <details className="autoshare-verify" open>
+      <summary>autoShare 驗證版 · 實測診斷</summary>
+      <ul className="autoshare-verify-list">
+        <li>
+          <strong>autoShare 啟用</strong>：{String(diagnostics.autoShareEnabled)}
+        </li>
+        <li>
+          <strong>已嘗試自動分享</strong>：
+          {String(diagnostics.autoShareAttempted)}
+        </li>
+        <li>
+          <strong>sessionStorage 防重複</strong>：
+          {String(diagnostics.skippedBySessionStorage)}
+        </li>
+        <li>
+          <strong>isInClient</strong>：{String(diagnostics.isInClient)}
+        </li>
+        <li>
+          <strong>isLoggedIn</strong>：{String(diagnostics.isLoggedIn)}
+        </li>
+        <li>
+          <strong>chat_message.write</strong>：
+          {diagnostics.chatMessageWriteState ?? "—"}
+        </li>
+        <li>
+          <strong>isApiAvailable(shareTargetPicker)</strong>：
+          {String(diagnostics.isShareTargetPickerAvailable)}
+        </li>
+        <li>
+          <strong>自動分享結果</strong>：{outcome}
+        </li>
+        {diagnostics.shareResult && (
+          <li>
+            <strong>結果說明</strong>：{diagnostics.shareResult}
+          </li>
+        )}
+        {diagnostics.errorCode && (
+          <li>
+            <strong>error.code</strong>：{diagnostics.errorCode}
+          </li>
+        )}
+        {diagnostics.errorMessage && (
+          <li>
+            <strong>error.message</strong>：{diagnostics.errorMessage}
+          </li>
+        )}
+      </ul>
+      <p className="autoshare-verify-note">
+        此區塊僅供 autoShare 驗證，非正式功能。
+      </p>
+    </details>
+  );
 }
 
 function FallbackNotice({
@@ -130,6 +202,12 @@ export default function SharePageClient({ store }: SharePageProps) {
   const [isSharing, setIsSharing] = useState(false);
   const [isReauthorizing, setIsReauthorizing] = useState(false);
   const [shareFeedback, setShareFeedback] = useState<string | null>(null);
+  const [autoShareOutcome, setAutoShareOutcome] =
+    useState<AutoShareOutcome>("idle");
+  const [autoShareDiagnostics, setAutoShareDiagnostics] =
+    useState<AutoShareDiagnostic | null>(null);
+
+  const autoShareEnabled = useMemo(() => isAutoShareEnabled(), []);
 
   const imageUrl = useMemo(
     () => getAbsoluteAssetUrl(store.shareImage),
@@ -156,6 +234,40 @@ export default function SharePageClient({ store }: SharePageProps) {
       }
 
       applyEnvironment(result);
+
+      if (!isAutoShareEnabled()) {
+        return;
+      }
+
+      const autoResult = await runAutoShareFlow(
+        store,
+        result.environment,
+        { isLoginRedirect: Boolean(result.redirecting) }
+      );
+
+      if (cancelled) {
+        return;
+      }
+
+      setAutoShareOutcome(autoResult.outcome);
+      setAutoShareDiagnostics(autoResult.diagnostics);
+
+      if (autoResult.outcome === "success") {
+        setShareFeedback(
+          "已完成分享操作。您可選擇好友或群組完成分享。"
+        );
+      } else if (autoResult.outcome === "cancelled") {
+        setShareFeedback("已取消分享，您可手動再試一次。");
+      } else if (autoResult.outcome === "failed") {
+        setShareFeedback(
+          autoResult.diagnostics.errorMessage ??
+            "自動分享失敗，請使用下方按鈕手動分享。"
+        );
+      } else if (autoResult.outcome === "fallback_precheck") {
+        setShareFeedback("自動分享條件未滿足，請使用下方按鈕手動分享。");
+      } else if (autoResult.outcome === "skipped_session") {
+        setShareFeedback("本 session 已嘗試過自動分享，請手動分享。");
+      }
     }
 
     bootstrap();
@@ -163,7 +275,7 @@ export default function SharePageClient({ store }: SharePageProps) {
     return () => {
       cancelled = true;
     };
-  }, [store.code, applyEnvironment]);
+  }, [store, applyEnvironment]);
 
   const handleReauthorize = useCallback(async () => {
     setIsReauthorizing(true);
@@ -236,9 +348,16 @@ export default function SharePageClient({ store }: SharePageProps) {
     }
   }, [applyEnvironment, store]);
 
+  const showShareAgain =
+    autoShareEnabled && autoShareOutcome === "success";
+
   return (
     <main className="page">
       <article className="card">
+        {autoShareEnabled && (
+          <div className="autoshare-badge">autoShare 驗證版</div>
+        )}
+
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img
           className="card-image"
@@ -267,22 +386,54 @@ export default function SharePageClient({ store }: SharePageProps) {
           isReauthorizing={isReauthorizing}
         />
 
+        {status !== "loading" && (
+          <AutoShareVerificationPanel
+            diagnostics={autoShareDiagnostics}
+            outcome={autoShareOutcome}
+          />
+        )}
+
         {status === "loading" && (
-          <div className="loading">正在載入 LINE 功能…</div>
+          <div className="loading">
+            {autoShareEnabled
+              ? "正在載入 LINE 功能（autoShare 驗證版）…"
+              : "正在載入 LINE 功能…"}
+          </div>
         )}
 
         <div className="actions">
-          <button
-            type="button"
-            className="btn-share"
-            onClick={handleShare}
-            disabled={status === "loading" || isSharing || isReauthorizing}
-            aria-busy={isSharing}
-          >
-            {isSharing ? "分享中…" : "分享給 LINE 好友"}
-          </button>
+          {showShareAgain ? (
+            <>
+              <p
+                className="alert alert-info"
+                style={{ marginBottom: 12 }}
+                role="status"
+              >
+                已完成分享操作。
+              </p>
+              <button
+                type="button"
+                className="btn-share"
+                onClick={handleShare}
+                disabled={isSharing || isReauthorizing}
+                aria-busy={isSharing}
+              >
+                {isSharing ? "分享中…" : "再分享一次"}
+              </button>
+            </>
+          ) : (
+            <button
+              type="button"
+              className="btn-share"
+              onClick={handleShare}
+              disabled={status === "loading" || isSharing || isReauthorizing}
+              aria-busy={isSharing}
+            >
+              {isSharing ? "分享中…" : "分享給 LINE 好友"}
+            </button>
+          )}
 
-          {shareFeedback && (
+          {shareFeedback && !showShareAgain && (
             <p
               className="alert alert-info"
               style={{ marginTop: 12, marginBottom: 0 }}
@@ -294,7 +445,10 @@ export default function SharePageClient({ store }: SharePageProps) {
         </div>
       </article>
 
-      <p className="footer-note">LINE 推薦好友工具 MVP v1</p>
+      <p className="footer-note">
+        LINE 推薦好友工具 MVP v1
+        {autoShareEnabled ? " · autoShare 驗證版" : ""}
+      </p>
     </main>
   );
 }

@@ -223,3 +223,39 @@ img {
   opacity: 0.55;
   cursor: not-allowed;
 }
+
+.autoshare-badge {
+  margin: 12px 20px 0;
+  padding: 6px 10px;
+  border-radius: 8px;
+  background: #fffbeb;
+  border: 1px dashed #f59e0b;
+  color: #92400e;
+  font-size: 0.75rem;
+  font-weight: 600;
+  text-align: center;
+}
+
+.autoshare-verify {
+  margin: 12px 20px 0;
+  font-size: 0.8rem;
+  color: var(--text-secondary);
+}
+
+.autoshare-verify summary {
+  cursor: pointer;
+  font-weight: 600;
+  color: #92400e;
+}
+
+.autoshare-verify-list {
+  margin: 8px 0 0;
+  padding-left: 1.25rem;
+  line-height: 1.6;
+}
+
+.autoshare-verify-note {
+  margin: 8px 0 0;
+  font-size: 0.75rem;
+  color: #92400e;
+}
