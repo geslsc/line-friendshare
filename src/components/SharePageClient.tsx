@@ -5,12 +5,10 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { getAbsoluteAssetUrl } from "@/config/env";
 import { trackEvent } from "@/lib/analytics/tracker";
 import {
-  forceTestShareTargetPicker,
   initLiff,
   refreshShareEnvironment,
   requestChatMessageWritePermission,
   shareStoreViaTargetPicker,
-  type ForceTestShareTargetPickerResult,
 } from "@/lib/liff/share";
 import type {
   ShareEnvironment,
@@ -41,91 +39,6 @@ function resolveStatus(
   return "ready";
 }
 
-function DiagnosticPanel({
-  environment,
-  onForceTest,
-  isForceTesting,
-  forceTestResult,
-}: {
-  environment: ShareEnvironment;
-  onForceTest: () => void;
-  isForceTesting: boolean;
-  forceTestResult: ForceTestShareTargetPickerResult | null;
-}) {
-  if (environment.diagnostics.length === 0) {
-    return null;
-  }
-
-  return (
-    <details className="diagnostics" style={{ margin: "12px 20px 0" }} open>
-      <summary>環境診斷（{environment.diagnostics.length} 項）</summary>
-      <ul className="diagnostics-list">
-        {environment.diagnostics.map((item) => (
-          <li key={item.step} data-ok={item.ok}>
-            <strong>{item.step}</strong>：{item.message}
-          </li>
-        ))}
-      </ul>
-      {(environment.lineVersion || environment.liffVersion || environment.os) && (
-        <p className="diagnostics-meta">
-          {environment.lineVersion && `LINE ${environment.lineVersion}`}
-          {environment.liffVersion && ` · LIFF SDK ${environment.liffVersion}`}
-          {environment.os && ` · ${environment.os}`}
-        </p>
-      )}
-
-      <div className="debug-actions">
-        <button
-          type="button"
-          className="btn-debug"
-          onClick={onForceTest}
-          disabled={isForceTesting}
-        >
-          {isForceTesting ? "測試中…" : "強制測試 shareTargetPicker"}
-        </button>
-        <p className="debug-note">
-          Debug only：略過 isApiAvailable，直接呼叫 liff.shareTargetPicker()
-        </p>
-      </div>
-
-      {forceTestResult && (
-        <div className="debug-result" role="status">
-          <p>
-            <strong>isApiAvailable（呼叫前）：</strong>
-            {String(forceTestResult.isApiAvailableBeforeCall)}
-          </p>
-          {forceTestResult.success && (
-            <p className="debug-success">shareTargetPicker 呼叫成功</p>
-          )}
-          {forceTestResult.cancelled && (
-            <p>使用者取消分享選擇器</p>
-          )}
-          {forceTestResult.errorDetails && (
-            <div className="debug-error-block">
-              <p>
-                <strong>error.name：</strong>
-                {forceTestResult.errorDetails.name}
-              </p>
-              <p>
-                <strong>error.code：</strong>
-                {forceTestResult.errorDetails.code}
-              </p>
-              <p>
-                <strong>error.message：</strong>
-                {forceTestResult.errorDetails.message}
-              </p>
-              <p>
-                <strong>JSON.stringify(error)：</strong>
-              </p>
-              <pre>{forceTestResult.errorDetails.raw}</pre>
-            </div>
-          )}
-        </div>
-      )}
-    </details>
-  );
-}
-
 function FallbackNotice({
   status,
   store,
@@ -143,16 +56,12 @@ function FallbackNotice({
     return null;
   }
 
-  const blockReason = environment?.shareBlockReason;
-  const initError = environment?.initError;
-
   if (status === "login_redirect") {
     return (
       <div className="alert alert-info" role="alert">
         <strong>正在導向 LINE 登入</strong>
         <p style={{ margin: "8px 0 0" }}>
-          {blockReason ??
-            "完成登入後會回到此頁，屆時再檢查 Share Target Picker 是否可用。"}
+          完成登入後會回到此頁，即可使用分享功能。
         </p>
       </div>
     );
@@ -163,9 +72,8 @@ function FallbackNotice({
       <div className="alert alert-error" role="alert">
         <strong>LIFF 初始化失敗</strong>
         <p style={{ margin: "8px 0 0" }}>
-          {initError ?? "無法載入 LINE 功能，您仍可使用下方店家連結。"}
+          無法載入 LINE 分享功能，您仍可使用下方店家連結。
         </p>
-        {blockReason && <p style={{ margin: "8px 0 0" }}>{blockReason}</p>}
       </div>
     );
   }
@@ -175,8 +83,7 @@ function FallbackNotice({
       <div className="alert alert-warning" role="alert">
         <strong>請在 LINE 內開啟此頁面以使用分享功能</strong>
         <p style={{ margin: "8px 0 0" }}>
-          {blockReason ??
-            "分享按鈕需在 LINE App 的 LIFF 環境中才能使用。您可先透過下方連結前往店家。"}
+          分享按鈕需在 LINE App 的 LIFF 環境中才能使用。您可先透過下方連結前往店家。
         </p>
       </div>
     );
@@ -187,8 +94,7 @@ function FallbackNotice({
       <div className="alert alert-warning" role="alert">
         <strong>Share Target Picker 目前不可用</strong>
         <p style={{ margin: "8px 0 0" }}>
-          {blockReason ??
-            "請確認 LINE Developers Console 已啟用 shareTargetPicker 並同意相關條款。"}
+          請確認在 LINE App 內開啟此頁面，並已完成必要的分享授權。
         </p>
         {environment?.needsReauthorize && (
           <button
@@ -198,7 +104,7 @@ function FallbackNotice({
             onClick={onReauthorize}
             disabled={isReauthorizing}
           >
-            {isReauthorizing ? "授權中…" : "重新授權 chat_message.write"}
+            {isReauthorizing ? "授權中…" : "重新授權分享權限"}
           </button>
         )}
         <p style={{ margin: "8px 0 0", fontSize: "0.85rem" }}>
@@ -223,9 +129,6 @@ export default function SharePageClient({ store }: SharePageProps) {
   const [environment, setEnvironment] = useState<ShareEnvironment | null>(null);
   const [isSharing, setIsSharing] = useState(false);
   const [isReauthorizing, setIsReauthorizing] = useState(false);
-  const [isForceTesting, setIsForceTesting] = useState(false);
-  const [forceTestResult, setForceTestResult] =
-    useState<ForceTestShareTargetPickerResult | null>(null);
   const [shareFeedback, setShareFeedback] = useState<string | null>(null);
 
   const imageUrl = useMemo(
@@ -273,43 +176,12 @@ export default function SharePageClient({ store }: SharePageProps) {
       if (result.environment.isShareTargetPickerAvailable) {
         setShareFeedback("授權完成，現在可以使用分享功能。");
       } else {
-        setShareFeedback(
-          result.environment.shareBlockReason ?? "授權後仍無法使用分享功能。"
-        );
+        setShareFeedback("授權後仍無法使用分享功能，請直接分享下方店家連結。");
       }
     } finally {
       setIsReauthorizing(false);
     }
   }, [applyEnvironment]);
-
-  const handleForceTest = useCallback(async () => {
-    setIsForceTesting(true);
-    setForceTestResult(null);
-
-    try {
-      const result = await forceTestShareTargetPicker();
-      setForceTestResult(result);
-    } catch (error) {
-      setForceTestResult({
-        success: false,
-        isApiAvailableBeforeCall: false,
-        errorDetails: {
-          name: error instanceof Error ? error.name : "Unknown",
-          code: "(none)",
-          message: error instanceof Error ? error.message : String(error),
-          raw: (() => {
-            try {
-              return JSON.stringify(error);
-            } catch {
-              return String(error);
-            }
-          })(),
-        },
-      });
-    } finally {
-      setIsForceTesting(false);
-    }
-  }, []);
 
   const handleShare = useCallback(async () => {
     trackEvent("share_click", store.code);
@@ -329,32 +201,23 @@ export default function SharePageClient({ store }: SharePageProps) {
       const { environment: latestEnv } = refreshed;
 
       if (latestEnv.initError) {
-        setShareFeedback(
-          latestEnv.shareBlockReason ??
-            "LIFF 尚未正確初始化，無法分享。"
-        );
+        setShareFeedback("分享功能暫時無法使用，請直接分享下方店家連結。");
         return;
       }
 
       if (!latestEnv.isInLine) {
-        setShareFeedback(
-          latestEnv.shareBlockReason ??
-            "請在 LINE App 內開啟此頁面以使用分享功能。"
-        );
+        setShareFeedback("請在 LINE App 內開啟此頁面以使用分享功能。");
         return;
       }
 
       if (!latestEnv.isLoggedIn) {
-        setShareFeedback(
-          latestEnv.shareBlockReason ?? "請先完成 LINE 登入。"
-        );
+        setShareFeedback("請先完成 LINE 登入。");
         return;
       }
 
       if (!latestEnv.isShareTargetPickerAvailable) {
         setShareFeedback(
-          latestEnv.shareBlockReason ??
-            "Share Target Picker 在此環境不可用。"
+          "Share Target Picker 目前不可用，請直接分享下方店家連結。"
         );
         return;
       }
@@ -403,15 +266,6 @@ export default function SharePageClient({ store }: SharePageProps) {
           onReauthorize={handleReauthorize}
           isReauthorizing={isReauthorizing}
         />
-
-        {environment && status !== "loading" && (
-          <DiagnosticPanel
-            environment={environment}
-            onForceTest={handleForceTest}
-            isForceTesting={isForceTesting}
-            forceTestResult={forceTestResult}
-          />
-        )}
 
         {status === "loading" && (
           <div className="loading">正在載入 LINE 功能…</div>

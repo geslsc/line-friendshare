@@ -5,8 +5,6 @@ import type { ShareEnvironment, StoreConfig } from "@/types/store";
 
 import {
   evaluateShareTargetPicker,
-  getRuntimeInfo,
-  logDiagnostics,
   queryChatMessageWriteState,
 } from "./diagnostics";
 
@@ -27,11 +25,6 @@ function baseEnvironment(
     isShareTargetPickerAvailable: false,
     chatMessageWriteState: "unknown",
     initError: null,
-    shareBlockReason: null,
-    diagnostics: [],
-    lineVersion: null,
-    liffVersion: null,
-    os: null,
     needsLogin: false,
     needsReauthorize: false,
     ...partial,
@@ -39,102 +32,57 @@ function baseEnvironment(
 }
 
 async function buildEnvironmentAfterInit(): Promise<LiffInitResult> {
-  const diagnostics: ShareEnvironment["diagnostics"] = [];
-  const runtime = getRuntimeInfo();
-
   const isInLine = liff.isInClient();
-  diagnostics.push({
-    step: "isInClient",
-    ok: isInLine,
-    message: isInLine
-      ? "在 LINE App 內"
-      : "不在 LINE App 內（外部瀏覽器）",
-  });
 
   if (!isInLine) {
-    const environment = baseEnvironment({
-      ...runtime,
-      isInLine: false,
-      diagnostics,
-      shareBlockReason:
-        "原因：不在 LINE App 內。請透過正式 LIFF URL 在 LINE App 中開啟此頁。",
-    });
-    logDiagnostics(diagnostics);
-    return { environment };
+    return { environment: baseEnvironment({ isInLine: false }) };
   }
 
   const isLoggedIn = liff.isLoggedIn();
-  diagnostics.push({
-    step: "isLoggedIn",
-    ok: isLoggedIn,
-    message: isLoggedIn ? "已登入 LINE" : "尚未登入 LINE",
-  });
 
   if (!isLoggedIn) {
     try {
       liff.login({ redirectUri: window.location.href });
-      const environment = baseEnvironment({
-        ...runtime,
-        isInLine: true,
-        isLoggedIn: false,
-        needsLogin: true,
-        diagnostics: [
-          ...diagnostics,
-          {
-            step: "liff.login",
-            ok: true,
-            message: "已觸發 liff.login，等待使用者完成登入…",
-          },
-        ],
-        shareBlockReason:
-          "原因：尚未登入 LINE，正在導向登入頁。登入完成後會自動回到此頁。",
-      });
-      logDiagnostics(environment.diagnostics);
-      return { environment, redirecting: true };
+      return {
+        environment: baseEnvironment({
+          isInLine: true,
+          isLoggedIn: false,
+          needsLogin: true,
+        }),
+        redirecting: true,
+      };
     } catch (error) {
       const message =
         error instanceof Error ? error.message : "liff.login 失敗";
 
-      const environment = baseEnvironment({
-        ...runtime,
-        isInLine: true,
-        isLoggedIn: false,
-        needsLogin: true,
-        diagnostics: [
-          ...diagnostics,
-          { step: "liff.login", ok: false, message },
-        ],
-        shareBlockReason: `原因：無法觸發 LIFF 登入（${message}）`,
-      });
-      logDiagnostics(environment.diagnostics);
-      return { environment };
+      return {
+        environment: baseEnvironment({
+          isInLine: true,
+          isLoggedIn: false,
+          needsLogin: true,
+          initError: message,
+        }),
+      };
     }
   }
 
-  const permissionResult = await queryChatMessageWriteState();
-  diagnostics.push(permissionResult.diagnostic);
+  const chatMessageWriteState = await queryChatMessageWriteState();
 
   const pickerResult = evaluateShareTargetPicker({
     isInLine,
     isLoggedIn,
-    chatMessageWriteState: permissionResult.state,
-    lineVersion: runtime.lineVersion,
-  });
-  diagnostics.push(pickerResult.diagnostic);
-
-  const environment = baseEnvironment({
-    ...runtime,
-    isInLine,
-    isLoggedIn,
-    isShareTargetPickerAvailable: pickerResult.available,
-    chatMessageWriteState: permissionResult.state,
-    diagnostics,
-    shareBlockReason: pickerResult.shareBlockReason,
-    needsReauthorize: pickerResult.needsReauthorize,
+    chatMessageWriteState,
   });
 
-  logDiagnostics(diagnostics);
-  return { environment };
+  return {
+    environment: baseEnvironment({
+      isInLine,
+      isLoggedIn,
+      isShareTargetPickerAvailable: pickerResult.available,
+      chatMessageWriteState,
+      needsReauthorize: pickerResult.needsReauthorize,
+    }),
+  };
 }
 
 export async function initLiff(): Promise<LiffInitResult> {
@@ -143,16 +91,7 @@ export async function initLiff(): Promise<LiffInitResult> {
   if (!liffId) {
     return {
       environment: baseEnvironment({
-        initError: "LIFF ID 尚未設定，請設定 NEXT_PUBLIC_LIFF_ID 環境變數。",
-        shareBlockReason:
-          "原因：NEXT_PUBLIC_LIFF_ID 未設定，無法初始化 LIFF。",
-        diagnostics: [
-          {
-            step: "env",
-            ok: false,
-            message: "NEXT_PUBLIC_LIFF_ID 未設定",
-          },
-        ],
+        initError: "LIFF ID 尚未設定",
       }),
     };
   }
@@ -168,8 +107,6 @@ export async function initLiff(): Promise<LiffInitResult> {
     return {
       environment: baseEnvironment({
         initError: message,
-        shareBlockReason: `原因：liff.init 失敗（${message}）`,
-        diagnostics: [{ step: "liff.init", ok: false, message }],
       }),
     };
   }
@@ -196,8 +133,6 @@ export async function refreshShareEnvironment(): Promise<LiffInitResult> {
     return {
       environment: baseEnvironment({
         initError: message,
-        shareBlockReason: `原因：刷新 LIFF 環境失敗（${message}）`,
-        diagnostics: [{ step: "refresh", ok: false, message }],
       }),
     };
   }
@@ -207,14 +142,7 @@ export async function requestChatMessageWritePermission(): Promise<LiffInitResul
   if (!liff.permission?.requestAll) {
     return {
       environment: baseEnvironment({
-        shareBlockReason: "原因：此 LIFF SDK 不支援 permission.requestAll",
-        diagnostics: [
-          {
-            step: "permission.requestAll",
-            ok: false,
-            message: "permission.requestAll 不可用",
-          },
-        ],
+        initError: "無法請求分享權限",
       }),
     };
   }
@@ -228,10 +156,7 @@ export async function requestChatMessageWritePermission(): Promise<LiffInitResul
 
     return {
       environment: baseEnvironment({
-        shareBlockReason: `原因：重新授權 chat_message.write 失敗（${message}）`,
-        diagnostics: [
-          { step: "permission.requestAll", ok: false, message },
-        ],
+        initError: message,
       }),
     };
   }
@@ -254,9 +179,7 @@ export async function shareStoreViaTargetPicker(
   if (!environment.isShareTargetPickerAvailable) {
     return {
       success: false,
-      error:
-        environment.shareBlockReason ??
-        "Share Target Picker 在此環境不可用",
+      error: "Share Target Picker 在此環境不可用。",
     };
   }
 
@@ -331,88 +254,5 @@ export async function shareStoreViaTargetPicker(
     const message =
       error instanceof Error ? error.message : "分享失敗，請稍後再試";
     return { success: false, error: message };
-  }
-}
-
-export interface ForceTestErrorDetails {
-  name: string;
-  code: string;
-  message: string;
-  raw: string;
-}
-
-export interface ForceTestShareTargetPickerResult {
-  success: boolean;
-  cancelled?: boolean;
-  isApiAvailableBeforeCall: boolean;
-  errorDetails?: ForceTestErrorDetails;
-}
-
-function serializeLiffError(error: unknown): ForceTestErrorDetails {
-  const record =
-    typeof error === "object" && error !== null
-      ? (error as Record<string, unknown>)
-      : null;
-
-  const name =
-    error instanceof Error
-      ? error.name
-      : record?.name != null
-        ? String(record.name)
-        : "Unknown";
-
-  const code = record?.code != null ? String(record.code) : "(none)";
-
-  const message =
-    error instanceof Error
-      ? error.message
-      : record?.message != null
-        ? String(record.message)
-        : String(error);
-
-  let raw = "";
-  try {
-    raw = JSON.stringify(error);
-  } catch {
-    raw = String(error);
-  }
-
-  if (raw === "{}" || raw === "undefined") {
-    try {
-      raw = JSON.stringify(error, Object.getOwnPropertyNames(Object(error)));
-    } catch {
-      raw = JSON.stringify({ name, code, message });
-    }
-  }
-
-  return { name, code, message, raw };
-}
-
-/**
- * Debug-only：略過 isApiAvailable 檢查，直接呼叫 shareTargetPicker 以取得 SDK 錯誤碼。
- */
-export async function forceTestShareTargetPicker(): Promise<ForceTestShareTargetPickerResult> {
-  const isApiAvailableBeforeCall = liff.isApiAvailable("shareTargetPicker");
-
-  try {
-    const result = await liff.shareTargetPicker([
-      { type: "text", text: "Share Target Picker 測試" },
-    ]);
-
-    if (result) {
-      return { success: true, isApiAvailableBeforeCall };
-    }
-
-    return {
-      success: false,
-      cancelled: true,
-      isApiAvailableBeforeCall,
-    };
-  } catch (error) {
-    return {
-      success: false,
-      isApiAvailableBeforeCall,
-      errorDetails: serializeLiffError(error),
-    };
   }
 }

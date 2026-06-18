@@ -15,7 +15,7 @@ export const stores: StoreConfig[] = [
       "我最近發現一間很棒的「測試美學館」✨\n" +
       "環境舒服、服務也很用心，推薦你也來看看！\n" +
       "點下面連結加入官方帳號 👇",
-    shareImage: "/images/demo-store-share.svg",
+    shareImage: "/images/demo-store-share.png",
   },
 ];
 
