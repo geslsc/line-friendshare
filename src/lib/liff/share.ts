@@ -333,3 +333,86 @@ export async function shareStoreViaTargetPicker(
     return { success: false, error: message };
   }
 }
+
+export interface ForceTestErrorDetails {
+  name: string;
+  code: string;
+  message: string;
+  raw: string;
+}
+
+export interface ForceTestShareTargetPickerResult {
+  success: boolean;
+  cancelled?: boolean;
+  isApiAvailableBeforeCall: boolean;
+  errorDetails?: ForceTestErrorDetails;
+}
+
+function serializeLiffError(error: unknown): ForceTestErrorDetails {
+  const record =
+    typeof error === "object" && error !== null
+      ? (error as Record<string, unknown>)
+      : null;
+
+  const name =
+    error instanceof Error
+      ? error.name
+      : record?.name != null
+        ? String(record.name)
+        : "Unknown";
+
+  const code = record?.code != null ? String(record.code) : "(none)";
+
+  const message =
+    error instanceof Error
+      ? error.message
+      : record?.message != null
+        ? String(record.message)
+        : String(error);
+
+  let raw = "";
+  try {
+    raw = JSON.stringify(error);
+  } catch {
+    raw = String(error);
+  }
+
+  if (raw === "{}" || raw === "undefined") {
+    try {
+      raw = JSON.stringify(error, Object.getOwnPropertyNames(Object(error)));
+    } catch {
+      raw = JSON.stringify({ name, code, message });
+    }
+  }
+
+  return { name, code, message, raw };
+}
+
+/**
+ * Debug-only：略過 isApiAvailable 檢查，直接呼叫 shareTargetPicker 以取得 SDK 錯誤碼。
+ */
+export async function forceTestShareTargetPicker(): Promise<ForceTestShareTargetPickerResult> {
+  const isApiAvailableBeforeCall = liff.isApiAvailable("shareTargetPicker");
+
+  try {
+    const result = await liff.shareTargetPicker([
+      { type: "text", text: "Share Target Picker 測試" },
+    ]);
+
+    if (result) {
+      return { success: true, isApiAvailableBeforeCall };
+    }
+
+    return {
+      success: false,
+      cancelled: true,
+      isApiAvailableBeforeCall,
+    };
+  } catch (error) {
+    return {
+      success: false,
+      isApiAvailableBeforeCall,
+      errorDetails: serializeLiffError(error),
+    };
+  }
+}

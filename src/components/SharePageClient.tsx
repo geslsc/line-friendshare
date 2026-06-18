@@ -5,10 +5,12 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { getAbsoluteAssetUrl } from "@/config/env";
 import { trackEvent } from "@/lib/analytics/tracker";
 import {
+  forceTestShareTargetPicker,
   initLiff,
   refreshShareEnvironment,
   requestChatMessageWritePermission,
   shareStoreViaTargetPicker,
+  type ForceTestShareTargetPickerResult,
 } from "@/lib/liff/share";
 import type {
   ShareEnvironment,
@@ -41,15 +43,21 @@ function resolveStatus(
 
 function DiagnosticPanel({
   environment,
+  onForceTest,
+  isForceTesting,
+  forceTestResult,
 }: {
   environment: ShareEnvironment;
+  onForceTest: () => void;
+  isForceTesting: boolean;
+  forceTestResult: ForceTestShareTargetPickerResult | null;
 }) {
   if (environment.diagnostics.length === 0) {
     return null;
   }
 
   return (
-    <details className="diagnostics" style={{ margin: "12px 20px 0" }}>
+    <details className="diagnostics" style={{ margin: "12px 20px 0" }} open>
       <summary>環境診斷（{environment.diagnostics.length} 項）</summary>
       <ul className="diagnostics-list">
         {environment.diagnostics.map((item) => (
@@ -64,6 +72,55 @@ function DiagnosticPanel({
           {environment.liffVersion && ` · LIFF SDK ${environment.liffVersion}`}
           {environment.os && ` · ${environment.os}`}
         </p>
+      )}
+
+      <div className="debug-actions">
+        <button
+          type="button"
+          className="btn-debug"
+          onClick={onForceTest}
+          disabled={isForceTesting}
+        >
+          {isForceTesting ? "測試中…" : "強制測試 shareTargetPicker"}
+        </button>
+        <p className="debug-note">
+          Debug only：略過 isApiAvailable，直接呼叫 liff.shareTargetPicker()
+        </p>
+      </div>
+
+      {forceTestResult && (
+        <div className="debug-result" role="status">
+          <p>
+            <strong>isApiAvailable（呼叫前）：</strong>
+            {String(forceTestResult.isApiAvailableBeforeCall)}
+          </p>
+          {forceTestResult.success && (
+            <p className="debug-success">shareTargetPicker 呼叫成功</p>
+          )}
+          {forceTestResult.cancelled && (
+            <p>使用者取消分享選擇器</p>
+          )}
+          {forceTestResult.errorDetails && (
+            <div className="debug-error-block">
+              <p>
+                <strong>error.name：</strong>
+                {forceTestResult.errorDetails.name}
+              </p>
+              <p>
+                <strong>error.code：</strong>
+                {forceTestResult.errorDetails.code}
+              </p>
+              <p>
+                <strong>error.message：</strong>
+                {forceTestResult.errorDetails.message}
+              </p>
+              <p>
+                <strong>JSON.stringify(error)：</strong>
+              </p>
+              <pre>{forceTestResult.errorDetails.raw}</pre>
+            </div>
+          )}
+        </div>
       )}
     </details>
   );
@@ -166,6 +223,9 @@ export default function SharePageClient({ store }: SharePageProps) {
   const [environment, setEnvironment] = useState<ShareEnvironment | null>(null);
   const [isSharing, setIsSharing] = useState(false);
   const [isReauthorizing, setIsReauthorizing] = useState(false);
+  const [isForceTesting, setIsForceTesting] = useState(false);
+  const [forceTestResult, setForceTestResult] =
+    useState<ForceTestShareTargetPickerResult | null>(null);
   const [shareFeedback, setShareFeedback] = useState<string | null>(null);
 
   const imageUrl = useMemo(
@@ -221,6 +281,35 @@ export default function SharePageClient({ store }: SharePageProps) {
       setIsReauthorizing(false);
     }
   }, [applyEnvironment]);
+
+  const handleForceTest = useCallback(async () => {
+    setIsForceTesting(true);
+    setForceTestResult(null);
+
+    try {
+      const result = await forceTestShareTargetPicker();
+      setForceTestResult(result);
+    } catch (error) {
+      setForceTestResult({
+        success: false,
+        isApiAvailableBeforeCall: false,
+        errorDetails: {
+          name: error instanceof Error ? error.name : "Unknown",
+          code: "(none)",
+          message: error instanceof Error ? error.message : String(error),
+          raw: (() => {
+            try {
+              return JSON.stringify(error);
+            } catch {
+              return String(error);
+            }
+          })(),
+        },
+      });
+    } finally {
+      setIsForceTesting(false);
+    }
+  }, []);
 
   const handleShare = useCallback(async () => {
     trackEvent("share_click", store.code);
@@ -316,7 +405,12 @@ export default function SharePageClient({ store }: SharePageProps) {
         />
 
         {environment && status !== "loading" && (
-          <DiagnosticPanel environment={environment} />
+          <DiagnosticPanel
+            environment={environment}
+            onForceTest={handleForceTest}
+            isForceTesting={isForceTesting}
+            forceTestResult={forceTestResult}
+          />
         )}
 
         {status === "loading" && (
