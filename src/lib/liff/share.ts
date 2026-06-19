@@ -190,13 +190,13 @@ export async function shareStoreViaTargetPicker(
   }
 
   const imageUrl = getAbsoluteAssetUrl(store.shareImage);
-  const shareText = `${store.shareText}\n${store.targetUrl}`;
+  const fallbackText = `${store.shareTitle}\n\n${store.shareDescription}\n${store.targetUrl}`;
 
   try {
     const result = await liff.shareTargetPicker([
       {
         type: "flex",
-        altText: `${store.name} — 好友推薦`,
+        altText: store.shareTitle,
         contents: {
           type: "bubble",
           hero: {
@@ -212,14 +212,14 @@ export async function shareStoreViaTargetPicker(
             contents: [
               {
                 type: "text",
-                text: store.name,
+                text: store.shareTitle,
                 weight: "bold",
                 size: "xl",
                 wrap: true,
               },
               {
                 type: "text",
-                text: store.shareText,
+                text: store.shareDescription,
                 size: "sm",
                 color: "#666666",
                 wrap: true,
@@ -247,7 +247,7 @@ export async function shareStoreViaTargetPicker(
       },
       {
         type: "text",
-        text: shareText,
+        text: fallbackText,
       },
     ]);
 

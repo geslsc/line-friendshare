@@ -9,14 +9,22 @@
 export interface StoreConfig {
   /** 不易猜測的店家代號，用於 URL path segment */
   code: string;
-  /** 店名／分享主題名稱 */
+  /** 店名／內部識別名稱 */
   name: string;
   /** 分享目標網址（優惠券、預約頁、活動頁等） */
   targetUrl: string;
   /** Flex 卡片與頁面 CTA 按鈕文案 */
   shareButtonLabel: string;
-  /** 分享給好友的推薦文案 */
-  shareText: string;
+  /** 分享者頁面標題（操作者看到的說明） */
+  sharerPageTitle: string;
+  /** 分享者頁面說明 */
+  sharerPageDescription: string;
+  /** 分享者頁面補充（獎勵機制、話術提醒等，可選） */
+  sharerPageNote?: string;
+  /** 被分享者卡片標題 */
+  shareTitle: string;
+  /** 被分享者卡片文案 */
+  shareDescription: string;
   /** 分享圖片（相對於 public/ 或完整 HTTPS URL） */
   shareImage: string;
 }

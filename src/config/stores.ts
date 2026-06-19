@@ -12,10 +12,15 @@ export const stores: StoreConfig[] = [
     name: "客立樂優惠券測試",
     targetUrl: "https://qli.tw/j-yVCXQ",
     shareButtonLabel: "查看優惠券",
-    shareText:
-      "推薦你領這張優惠券\n\n" +
+    sharerPageTitle: "分享優惠券給好友",
+    sharerPageDescription:
+      "把這張優惠券分享給好友，讓朋友也能看看這次的優惠內容。",
+    sharerPageNote:
+      "如果之後正式提供店家使用，這裡會作為店家寫給分享者的說明區，可放推薦話術、分享提醒，或分享成功後的獎勵機制說明。",
+    shareTitle: "推薦你領這張優惠券",
+    shareDescription:
       "我看到這張優惠券覺得不錯，分享給你看看～點進去就可以查看優惠內容。",
-    shareImage: "/images/demo-store-share.png",
+    shareImage: "/images/coupon-share-hero.png",
   },
 ];
 

@@ -22,11 +22,11 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
   }
 
   return {
-    title: `${store.name} — 好友推薦`,
-    description: store.shareText.slice(0, 120),
+    title: `${store.sharerPageTitle} — ${store.name}`,
+    description: store.sharerPageDescription.slice(0, 120),
     openGraph: {
-      title: `${store.name} — 好友推薦`,
-      description: store.shareText.slice(0, 120),
+      title: `${store.sharerPageTitle} — ${store.name}`,
+      description: store.sharerPageDescription.slice(0, 120),
       images: [store.shareImage],
     },
   };

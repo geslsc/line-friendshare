@@ -82,10 +82,14 @@ npm run dev
 編輯 `src/config/stores.ts` 新增或修改店家。欄位：
 
 - `code` — 不易猜測代號
-- `name` — 店名
+- `name` — 店名／內部識別名稱
 - `targetUrl` — 分享目標網址
 - `shareButtonLabel` — 分享卡片／頁面 CTA 按鈕文案
-- `shareText` — 分享文案
+- `sharerPageTitle` — 分享者頁面標題
+- `sharerPageDescription` — 分享者頁面說明
+- `sharerPageNote` — 分享者頁面補充（可選）
+- `shareTitle` — 被分享者卡片標題
+- `shareDescription` — 被分享者卡片文案
 - `shareImage` — 分享圖（`/public` 內路徑或 HTTPS URL）
 
 ## 埋點方案（v1）

@@ -362,12 +362,16 @@ export default function SharePageClient({ store }: SharePageProps) {
         <img
           className="card-image"
           src={imageUrl}
-          alt={`${store.name} 分享圖`}
+          alt={store.sharerPageTitle}
         />
 
         <div className="card-body">
-          <h1 className="store-name">{store.name}</h1>
-          <p className="share-text">{store.shareText}</p>
+          <p className="store-label">{store.name}</p>
+          <h1 className="store-name">{store.sharerPageTitle}</h1>
+          <p className="share-text">{store.sharerPageDescription}</p>
+          {store.sharerPageNote && (
+            <p className="share-note">{store.sharerPageNote}</p>
+          )}
           <a
             className="store-link"
             href={store.targetUrl}

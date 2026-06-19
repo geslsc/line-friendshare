@@ -80,9 +80,28 @@ img {
   line-height: 1.3;
 }
 
+.store-label {
+  margin: 0 0 6px;
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--text-secondary);
+}
+
 .share-text {
   margin: 0 0 16px;
   font-size: 0.95rem;
+  line-height: 1.6;
+  color: var(--text-secondary);
+  white-space: pre-wrap;
+}
+
+.share-note {
+  margin: 0 0 16px;
+  padding: 12px;
+  border-radius: 10px;
+  background: #f9fafb;
+  border: 1px solid var(--border);
+  font-size: 0.85rem;
   line-height: 1.6;
   color: var(--text-secondary);
   white-space: pre-wrap;
