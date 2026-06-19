@@ -337,7 +337,7 @@ export default function SharePageClient({ store }: SharePageProps) {
       const result = await shareStoreViaTargetPicker(store);
 
       if (result.success) {
-        setShareFeedback("已開啟分享選擇器，請選擇要分享的好友或群組。");
+        setShareFeedback("已完成分享給所選好友。");
       } else if (result.cancelled) {
         setShareFeedback("已取消分享。");
       } else {
