@@ -9,10 +9,12 @@
 export interface StoreConfig {
   /** 不易猜測的店家代號，用於 URL path segment */
   code: string;
-  /** 店名 */
+  /** 店名／分享主題名稱 */
   name: string;
-  /** 店家 LINE 官方帳號或連結 */
-  storeLink: string;
+  /** 分享目標網址（優惠券、預約頁、活動頁等） */
+  targetUrl: string;
+  /** Flex 卡片與頁面 CTA 按鈕文案 */
+  shareButtonLabel: string;
   /** 分享給好友的推薦文案 */
   shareText: string;
   /** 分享圖片（相對於 public/ 或完整 HTTPS URL） */

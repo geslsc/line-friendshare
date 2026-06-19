@@ -83,7 +83,8 @@ npm run dev
 
 - `code` — 不易猜測代號
 - `name` — 店名
-- `storeLink` — 店家連結
+- `targetUrl` — 分享目標網址
+- `shareButtonLabel` — 分享卡片／頁面 CTA 按鈕文案
 - `shareText` — 分享文案
 - `shareImage` — 分享圖（`/public` 內路徑或 HTTPS URL）
 

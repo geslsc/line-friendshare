@@ -9,11 +9,12 @@ import type { StoreConfig } from "@/types/store";
 export const stores: StoreConfig[] = [
   {
     code: "k8m3n7x2",
-    name: "阿智官方 LINE",
-    storeLink: "https://lin.ee/VGWB02r",
+    name: "客立樂優惠券測試",
+    targetUrl: "https://qli.tw/j-yVCXQ",
+    shareButtonLabel: "查看優惠券",
     shareText:
-      "推薦你加這個 LINE 官方帳號\n\n" +
-      "我推薦你加這個 LINE 官方帳號，可以看看最新服務資訊，也可以直接私訊詢問。",
+      "推薦你領這張優惠券\n\n" +
+      "我看到這張優惠券覺得不錯，分享給你看看～點進去就可以查看優惠內容。",
     shareImage: "/images/demo-store-share.png",
   },
 ];

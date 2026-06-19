@@ -190,7 +190,7 @@ export async function shareStoreViaTargetPicker(
   }
 
   const imageUrl = getAbsoluteAssetUrl(store.shareImage);
-  const shareText = `${store.shareText}\n${store.storeLink}`;
+  const shareText = `${store.shareText}\n${store.targetUrl}`;
 
   try {
     const result = await liff.shareTargetPicker([
@@ -235,8 +235,8 @@ export async function shareStoreViaTargetPicker(
                 type: "button",
                 action: {
                   type: "uri",
-                  label: "查看店家",
-                  uri: store.storeLink,
+                  label: store.shareButtonLabel,
+                  uri: store.targetUrl,
                 },
                 style: "primary",
                 color: "#06C755",

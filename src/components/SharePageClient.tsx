@@ -189,7 +189,7 @@ function FallbackNotice({
   return (
     <div className="alert alert-info" role="alert">
       您仍可直接前往{" "}
-      <a href={store.storeLink} target="_blank" rel="noopener noreferrer">
+      <a href={store.targetUrl} target="_blank" rel="noopener noreferrer">
         {store.name}
       </a>
     </div>
@@ -370,11 +370,11 @@ export default function SharePageClient({ store }: SharePageProps) {
           <p className="share-text">{store.shareText}</p>
           <a
             className="store-link"
-            href={store.storeLink}
+            href={store.targetUrl}
             target="_blank"
             rel="noopener noreferrer"
           >
-            {store.storeLink}
+            {store.shareButtonLabel}
           </a>
         </div>
 
